@@ -1,0 +1,9 @@
+{
+  "name": "simple-rmm-agent",
+  "version": "1.0.0",
+  "description": "RMM Agent for Windows and Linux",
+  "main": "agent.py",
+  "scripts": {
+    "start": "python agent.py"
+  }
+}

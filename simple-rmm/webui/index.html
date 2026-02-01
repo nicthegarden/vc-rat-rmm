@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple RMM - Remote Management Console</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: #16213e;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #0f3460;
+        }
+        
+        .header h1 {
+            color: #e94560;
+            font-size: 1.5rem;
+        }
+        
+        .status {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .container {
+            display: flex;
+            height: calc(100vh - 70px);
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: #16213e;
+            padding: 1rem;
+            overflow-y: auto;
+            border-right: 2px solid #0f3460;
+        }
+        
+        .sidebar h3 {
+            color: #e94560;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .filter-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .filter-section label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: #aaa;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 0.5rem;
+            background: #0f3460;
+            border: 1px solid #1a1a2e;
+            color: #eee;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .main-content {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: #16213e;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+        }
+        
+        .stat-card h4 {
+            color: #aaa;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #e94560;
+        }
+        
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+        
+        .agent-card {
+            background: #16213e;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+            padding: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        
+        .agent-card:hover {
+            transform: translateY(-2px);
+            border-color: #e94560;
+        }
+        
+        .agent-card.offline {
+            opacity: 0.6;
+        }
+        
+        .agent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .agent-name {
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .agent-status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        
+        .agent-status.online {
+            background: #28a745;
+            color: white;
+        }
+        
+        .agent-status.offline {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .agent-info {
+            font-size: 0.85rem;
+            color: #aaa;
+            margin-bottom: 0.5rem;
+        }
+        
+        .agent-meta {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.75rem;
+        }
+        
+        .agent-tag {
+            background: #0f3460;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        
+        .agent-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-primary {
+            background: #e94560;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #c73e54;
+        }
+        
+        .btn-secondary {
+            background: #0f3460;
+            color: #eee;
+        }
+        
+        .btn-secondary:hover {
+            background: #1a4a7a;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #16213e;
+            border-radius: 8px;
+            max-width: 900px;
+            width: 90%;
+            max-height: 90vh;
+            overflow: hidden;
+            border: 2px solid #0f3460;
+        }
+        
+        .modal-header {
+            background: #0f3460;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: #eee;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #0f3460;
+            padding-bottom: 0.5rem;
+        }
+        
+        .tab {
+            padding: 0.5rem 1rem;
+            background: none;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        
+        .tab.active {
+            color: #e94560;
+            border-bottom: 2px solid #e94560;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .terminal {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            padding: 1rem;
+            border-radius: 4px;
+            height: 300px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+        }
+        
+        .terminal-input {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .terminal-input input {
+            flex: 1;
+            background: #000;
+            border: 1px solid #333;
+            color: #0f0;
+            padding: 0.5rem;
+        }
+        
+        .vnc-container {
+            background: #000;
+            border-radius: 4px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .vnc-image {
+            max-width: 100%;
+            max-height: 500px;
+            cursor: crosshair;
+        }
+        
+        .vnc-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .vnc-controls button {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .updates-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .update-item {
+            background: #0f3460;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .update-item.critical {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .update-item.important {
+            border-left: 4px solid #ffc107;
+        }
+        
+        .system-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        
+        .metric {
+            background: #0f3460;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+        
+        .metric-bar {
+            background: #1a1a2e;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        
+        .metric-bar-fill {
+            height: 100%;
+            background: #e94560;
+            transition: width 0.3s;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 1rem;
+            border-radius: 4px;
+            display: none;
+            z-index: 2000;
+        }
+        
+        .notification.show {
+            display: block;
+            animation: slideIn 0.3s;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔧 Simple RMM Console</h1>
+        <div class="status">
+            <div class="status-indicator"></div>
+            <span id="connectionStatus">Connected</span>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="sidebar">
+            <div class="filter-section">
+                <h3>Organization</h3>
+                <label>Customer</label>
+                <select id="customerFilter">
+                    <option value="">All Customers</option>
+                </select>
+                
+                <label style="margin-top: 0.75rem;">Site</label>
+                <select id="siteFilter">
+                    <option value="">All Sites</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Filter</h3>
+                <label>Status</label>
+                <select id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="online">Online</option>
+                    <option value="offline">Offline</option>
+                </select>
+                
+                <label style="margin-top: 0.75rem;">Operating System</label>
+                <select id="osFilter">
+                    <option value="">All OS</option>
+                    <option value="Windows">Windows</option>
+                    <option value="Linux">Linux</option>
+                </select>
+            </div>
+            
+            <div class="filter-section">
+                <h3>Quick Actions</h3>
+                <button class="btn btn-primary" style="width: 100%; margin-bottom: 0.5rem;" onclick="refreshAgents()">
+                    Refresh List
+                </button>
+                <button class="btn btn-secondary" style="width: 100%;" onclick="clearFilters()">
+                    Clear Filters
+                </button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Total Agents</h4>
+                    <div class="value" id="totalAgents">0</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Online</h4>
+                    <div class="value" id="onlineAgents">0</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Offline</h4>
+                    <div class="value" id="offlineAgents">0</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Customers</h4>
+                    <div class="value" id="totalCustomers">0</div>
+                </div>
+            </div>
+            
+            <h2 style="margin-bottom: 1rem; color: #e94560;">Managed Computers</h2>
+            <div class="agents-grid" id="agentsGrid">
+                <div class="empty-state">
+                    <h3>No agents connected</h3>
+                    <p>Install the agent on your computers to start managing them</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Agent Details Modal -->
+    <div class="modal" id="agentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalAgentName">Agent Details</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('overview')">Overview</button>
+                    <button class="tab" onclick="switchTab('shell')">Remote Shell</button>
+                    <button class="tab" onclick="switchTab('vnc')">Remote Desktop</button>
+                    <button class="tab" onclick="switchTab('updates')">Updates</button>
+                </div>
+                
+                <div id="overview" class="tab-content active">
+                    <div class="system-metrics" id="systemMetrics">
+                        <div class="metric">
+                            <strong>CPU Usage</strong>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill" id="cpuBar" style="width: 0%"></div>
+                            </div>
+                            <span id="cpuText">0%</span>
+                        </div>
+                        <div class="metric">
+                            <strong>Memory Usage</strong>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill" id="memoryBar" style="width: 0%"></div>
+                            </div>
+                            <span id="memoryText">0%</span>
+                        </div>
+                        <div class="metric">
+                            <strong>Disk Usage</strong>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill" id="diskBar" style="width: 0%"></div>
+                            </div>
+                            <span id="diskText">0%</span>
+                        </div>
+                        <div class="metric">
+                            <strong>IP Address</strong>
+                            <p id="ipAddress">-</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1.5rem;">
+                        <h4 style="margin-bottom: 0.5rem;">Agent Information</h4>
+                        <p id="agentDetails">Loading...</p>
+                    </div>
+                </div>
+                
+                <div id="shell" class="tab-content">
+                    <div class="terminal" id="terminal"></div>
+                    <div class="terminal-input">
+                        <span style="color: #0f0;">$</span>
+                        <input type="text" id="shellInput" placeholder="Enter command..." onkeypress="handleShellKeypress(event)">
+                        <button class="btn btn-primary" onclick="executeShellCommand()">Execute</button>
+                    </div>
+                </div>
+                
+                <div id="vnc" class="tab-content">
+                    <div class="vnc-container" id="vncContainer">
+                        <div class="empty-state">
+                            <p>VNC session not started</p>
+                            <button class="btn btn-primary" style="margin-top: 1rem;" onclick="startVNC()">
+                                Start Remote Desktop
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="updates" class="tab-content">
+                    <div style="margin-bottom: 1rem;">
+                        <button class="btn btn-primary" onclick="checkUpdates()">Check for Updates</button>
+                        <button class="btn btn-secondary" onclick="installUpdates()">Install All Updates</button>
+                    </div>
+                    <div class="updates-list" id="updatesList">
+                        <p>Click "Check for Updates" to see available updates</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="notification" id="notification"></div>
+    
+    <script>
+        let agents = [];
+        let currentAgent = null;
+        let ws = null;
+        let shellSessionId = null;
+        let vncActive = false;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            connectWebSocket();
+            loadAgents();
+            loadOrganizations();
+        });
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}`);
+            
+            ws.onopen = () => {
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                document.querySelector('.status-indicator').style.background = '#28a745';
+            };
+            
+            ws.onclose = () => {
+                document.getElementById('connectionStatus').textContent = 'Disconnected';
+                document.querySelector('.status-indicator').style.background = '#dc3545';
+                setTimeout(connectWebSocket, 5000);
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+        }
+        
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'agent_connected':
+                case 'agent_status':
+                    loadAgents();
+                    break;
+                    
+                case 'shell_output':
+                    if (data.agentId === currentAgent?.id) {
+                        appendTerminal(data.output);
+                    }
+                    break;
+                    
+                case 'shell_exit':
+                    if (data.agentId === currentAgent?.id) {
+                        appendTerminal(`\nProcess exited with code ${data.exitCode}\n$ `);
+                    }
+                    break;
+                    
+                case 'vnc_frame':
+                    if (data.agentId === currentAgent?.id && vncActive) {
+                        updateVNCFrame(data.frame);
+                    }
+                    break;
+                    
+                case 'updates_list':
+                    if (data.agentId === currentAgent?.id) {
+                        displayUpdates(data.updates);
+                    }
+                    break;
+                    
+                case 'command_result':
+                    showNotification(data.result || data.error);
+                    break;
+            }
+        }
+        
+        async function loadAgents() {
+            try {
+                const response = await fetch('/api/agents');
+                agents = await response.json();
+                renderAgents();
+                updateStats();
+            } catch (error) {
+                console.error('Error loading agents:', error);
+            }
+        }
+        
+        async function loadOrganizations() {
+            try {
+                const response = await fetch('/api/organizations');
+                const data = await response.json();
+                
+                const customerFilter = document.getElementById('customerFilter');
+                const siteFilter = document.getElementById('siteFilter');
+                
+                customerFilter.innerHTML = '<option value="">All Customers</option>';
+                siteFilter.innerHTML = '<option value="">All Sites</option>';
+                
+                data.customers.forEach(customer => {
+                    customerFilter.innerHTML += `<option value="${customer}">${customer}</option>`;
+                });
+                
+                data.sites.forEach(site => {
+                    siteFilter.innerHTML += `<option value="${site}">${site}</option>`;
+                });
+            } catch (error) {
+                console.error('Error loading organizations:', error);
+            }
+        }
+        
+        function renderAgents() {
+            const grid = document.getElementById('agentsGrid');
+            const customerFilter = document.getElementById('customerFilter').value;
+            const siteFilter = document.getElementById('siteFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const osFilter = document.getElementById('osFilter').value;
+            
+            let filteredAgents = agents.filter(agent => {
+                if (customerFilter && agent.customer !== customerFilter) return false;
+                if (siteFilter && agent.site !== siteFilter) return false;
+                if (statusFilter && agent.status !== statusFilter) return false;
+                if (osFilter && agent.os !== osFilter) return false;
+                return true;
+            });
+            
+            if (filteredAgents.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1/-1;">
+                        <h3>No agents found</h3>
+                        <p>Adjust your filters or install agents on your computers</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = filteredAgents.map(agent => `
+                <div class="agent-card ${agent.status}" onclick="showAgentDetails('${agent.id}')">
+                    <div class="agent-header">
+                        <span class="agent-name">${agent.hostname}</span>
+                        <span class="agent-status ${agent.status}">${agent.status.toUpperCase()}</span>
+                    </div>
+                    <div class="agent-info">
+                        <strong>OS:</strong> ${agent.os} ${agent.version}<br>
+                        <strong>Last Seen:</strong> ${new Date(agent.lastSeen).toLocaleString()}<br>
+                        <strong>IP:</strong> ${agent.systemInfo.ip_address || 'N/A'}
+                    </div>
+                    <div class="agent-meta">
+                        <span class="agent-tag">${agent.customer}</span>
+                        <span class="agent-tag">${agent.site}</span>
+                    </div>
+                    <div class="agent-actions" onclick="event.stopPropagation()">
+                        <button class="btn btn-primary" onclick="quickShell('${agent.id}')" ${agent.status === 'offline' ? 'disabled' : ''}>
+                            Shell
+                        </button>
+                        <button class="btn btn-secondary" onclick="checkUpdates('${agent.id}')" ${agent.status === 'offline' ? 'disabled' : ''}>
+                            Updates
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function updateStats() {
+            document.getElementById('totalAgents').textContent = agents.length;
+            document.getElementById('onlineAgents').textContent = agents.filter(a => a.status === 'online').length;
+            document.getElementById('offlineAgents').textContent = agents.filter(a => a.status === 'offline').length;
+            
+            const customers = new Set(agents.map(a => a.customer));
+            document.getElementById('totalCustomers').textContent = customers.size;
+        }
+        
+        function showAgentDetails(agentId) {
+            currentAgent = agents.find(a => a.id === agentId);
+            if (!currentAgent) return;
+            
+            document.getElementById('modalAgentName').textContent = currentAgent.hostname;
+            document.getElementById('agentDetails').innerHTML = `
+                <strong>Agent ID:</strong> ${currentAgent.id}<br>
+                <strong>Hostname:</strong> ${currentAgent.hostname}<br>
+                <strong>OS:</strong> ${currentAgent.os} ${currentAgent.version}<br>
+                <strong>Customer:</strong> ${currentAgent.customer}<br>
+                <strong>Site:</strong> ${currentAgent.site}<br>
+                <strong>Status:</strong> ${currentAgent.status}<br>
+                <strong>Last Seen:</strong> ${new Date(currentAgent.lastSeen).toLocaleString()}
+            `;
+            
+            // Update metrics
+            const info = currentAgent.systemInfo || {};
+            document.getElementById('cpuBar').style.width = `${info.cpu_percent || 0}%`;
+            document.getElementById('cpuText').textContent = `${Math.round(info.cpu_percent || 0)}%`;
+            document.getElementById('memoryBar').style.width = `${info.memory_percent || 0}%`;
+            document.getElementById('memoryText').textContent = `${Math.round(info.memory_percent || 0)}% (${info.memory_used_gb || 0}/${info.memory_total_gb || 0} GB)`;
+            document.getElementById('diskBar').style.width = `${info.disk_percent || 0}%`;
+            document.getElementById('diskText').textContent = `${Math.round(info.disk_percent || 0)}% (${info.disk_used_gb || 0}/${info.disk_total_gb || 0} GB)`;
+            document.getElementById('ipAddress').textContent = info.ip_address || 'N/A';
+            
+            // Reset tabs
+            switchTab('overview');
+            document.getElementById('terminal').innerHTML = '';
+            document.getElementById('updatesList').innerHTML = '<p>Click "Check for Updates" to see available updates</p>';
+            
+            document.getElementById('agentModal').classList.add('active');
+        }
+        
+        function closeModal() {
+            if (vncActive) {
+                stopVNC();
+            }
+            document.getElementById('agentModal').classList.remove('active');
+            currentAgent = null;
+        }
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+        
+        function appendTerminal(text) {
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML += text.replace(/\n/g, '<br>');
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+        
+        function handleShellKeypress(event) {
+            if (event.key === 'Enter') {
+                executeShellCommand();
+            }
+        }
+        
+        async function executeShellCommand() {
+            const input = document.getElementById('shellInput');
+            const command = input.value.trim();
+            if (!command || !currentAgent) return;
+            
+            shellSessionId = shellSessionId || Date.now().toString();
+            appendTerminal(`$ ${command}\n`);
+            input.value = '';
+            
+            try {
+                await fetch(`/api/agents/${currentAgent.id}/shell`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command, sessionId: shellSessionId })
+                });
+            } catch (error) {
+                appendTerminal(`Error: ${error.message}\n`);
+            }
+        }
+        
+        function quickShell(agentId) {
+            showAgentDetails(agentId);
+            setTimeout(() => {
+                document.querySelector('.tab:nth-child(2)').click();
+            }, 100);
+        }
+        
+        function startVNC() {
+            if (!currentAgent) return;
+            
+            vncActive = true;
+            const container = document.getElementById('vncContainer');
+            container.innerHTML = `
+                <div class="vnc-controls">
+                    <button onclick="stopVNC()">Stop</button>
+                    <button onclick="toggleQuality()">Quality</button>
+                </div>
+                <img class="vnc-image" id="vncImage" alt="Remote Desktop">
+            `;
+            
+            fetch(`/api/agents/${currentAgent.id}/vnc/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quality: 'medium', fps: 15 })
+            });
+        }
+        
+        function stopVNC() {
+            if (!currentAgent) return;
+            
+            vncActive = false;
+            fetch(`/api/agents/${currentAgent.id}/vnc/stop`, { method: 'POST' });
+            
+            document.getElementById('vncContainer').innerHTML = `
+                <div class="empty-state">
+                    <p>VNC session stopped</p>
+                    <button class="btn btn-primary" style="margin-top: 1rem;" onclick="startVNC()">
+                        Start Remote Desktop
+                    </button>
+                </div>
+            `;
+        }
+        
+        function updateVNCFrame(frameData) {
+            const img = document.getElementById('vncImage');
+            if (img) {
+                img.src = `data:image/jpeg;base64,${frameData}`;
+            }
+        }
+        
+        async function checkUpdates(agentId = null) {
+            const targetAgent = agentId ? agents.find(a => a.id === agentId) : currentAgent;
+            if (!targetAgent) return;
+            
+            document.getElementById('updatesList').innerHTML = '<p>Checking for updates...</p>';
+            
+            try {
+                await fetch(`/api/agents/${targetAgent.id}/updates`, { method: 'POST' });
+            } catch (error) {
+                document.getElementById('updatesList').innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        function displayUpdates(updates) {
+            if (!updates || updates.length === 0) {
+                document.getElementById('updatesList').innerHTML = '<p>No updates available. System is up to date!</p>';
+                return;
+            }
+            
+            document.getElementById('updatesList').innerHTML = updates.map(update => `
+                <div class="update-item ${update.IsCritical ? 'critical' : update.IsImportant ? 'important' : ''}">
+                    <strong>${update.Title || 'Unknown Update'}</strong>
+                    ${update.KB ? `<span style="color: #aaa; margin-left: 0.5rem;">(KB${update.KB})</span>` : ''}
+                    <p style="font-size: 0.85rem; color: #aaa; margin-top: 0.25rem;">
+                        ${update.Description || 'No description available'}
+                    </p>
+                    ${update.Size ? `<span style="font-size: 0.75rem; color: #666;">Size: ${update.Size} MB</span>` : ''}
+                </div>
+            `).join('');
+        }
+        
+        async function installUpdates() {
+            if (!currentAgent) return;
+            
+            if (!confirm('Are you sure you want to install all available updates? The system may need to reboot.')) {
+                return;
+            }
+            
+            try {
+                await fetch(`/api/agents/${currentAgent.id}/updates/install`, { method: 'POST' });
+                showNotification('Update installation initiated');
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
+        }
+        
+        function refreshAgents() {
+            loadAgents();
+            loadOrganizations();
+            showNotification('Agent list refreshed');
+        }
+        
+        function clearFilters() {
+            document.getElementById('customerFilter').value = '';
+            document.getElementById('siteFilter').value = '';
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('osFilter').value = '';
+            renderAgents();
+        }
+        
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.background = type === 'error' ? '#dc3545' : '#28a745';
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Filter change handlers
+        document.getElementById('customerFilter').addEventListener('change', renderAgents);
+        document.getElementById('siteFilter').addEventListener('change', renderAgents);
+        document.getElementById('statusFilter').addEventListener('change', renderAgents);
+        document.getElementById('osFilter').addEventListener('change', renderAgents);
+    </script>
+</body>
+</html>
